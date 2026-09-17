@@ -460,10 +460,6 @@ function buildAllEvents(){
   for (const [mmdd, obj] of Object.entries(MINOR_HOLIDAYS)){
     list.push({ date: '2000-'+mmdd, mmdd, title: obj.title, type: 'holiday', emoji: '✨', annual: true, desc: obj.desc });
   }
-  // 11) Приметы
-  for (const [mmdd, obj] of Object.entries(SUPERSTITIONS)){
-    list.push({ date: '2000-'+mmdd, mmdd, title: obj.title, type: 'superstition', emoji: '🌸', annual: true, desc: obj.desc });
-  }
 
   return list;
 }
