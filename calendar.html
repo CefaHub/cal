@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>Наш календарь</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
@@ -10,401 +10,569 @@
     --bg: var(--tg-theme-bg-color, #17212b);
     --text: var(--tg-theme-text-color, #ffffff);
     --hint: var(--tg-theme-hint-color, #708499);
-    --link: var(--tg-theme-link-color, #6ab2f2);
     --btn: var(--tg-theme-button-color, #5288c1);
     --btn-text: var(--tg-theme-button-text-color, #ffffff);
     --secondary: var(--tg-theme-secondary-bg-color, #232e3c);
     --accent: var(--tg-theme-accent-text-color, #6ab2f2);
   }
-  * { box-sizing: border-box; margin: 0; padding: 0; }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
   html, body {
-    background: var(--bg);
-    color: var(--text);
+    width: 100%; height: 100dvh; overflow: hidden;
+    background: var(--bg); color: var(--text);
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    min-height: 100vh;
   }
-  body { padding: 16px; padding-bottom: 40px; }
+  .app {
+    display: flex; flex-direction: column;
+    height: 100dvh; max-width: 500px; margin: 0 auto;
+    padding: env(safe-area-inset-top) 12px env(safe-area-inset-bottom);
+  }
+  .header { flex-shrink: 0; display: flex; align-items: center; justify-content: space-between; padding: 12px 4px 10px; }
+  .header .nav-btn {
+    width: 40px; height: 40px; border-radius: 12px;
+    background: var(--secondary); color: var(--text);
+    border: none; font-size: 20px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .header .nav-btn:active { opacity: 0.6; }
+  .header .month { font-size: 17px; font-weight: 600; }
+  .dow { flex-shrink: 0; display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; padding-bottom: 6px; }
+  .dow div { text-align: center; font-size: 11px; color: var(--hint); font-weight: 500; padding: 4px 0; }
+  .grid { flex-shrink: 0; display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 10px; }
+  .day {
+    aspect-ratio: 1; display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    border-radius: 10px; font-size: 14px;
+    background: var(--secondary); position: relative;
+    cursor: pointer; transition: transform 0.1s;
+  }
+  .day:active { transform: scale(0.94); }
+  .day.empty { background: transparent; cursor: default; }
+  .day.empty:active { transform: none; }
+  .day.today { outline: 2px solid var(--accent); font-weight: 700; }
+  .day.selected { outline: 2px solid #f06292; font-weight: 700; }
+  .day.anniversary { background: linear-gradient(135deg, #e91e63, #f06292); color: #fff; }
+  .day.monthly { background: linear-gradient(135deg, #ec407a, #f48fb1); color: #fff; }
+  .day.wedding { background: linear-gradient(135deg, #9c27b0, #ba68c8); color: #fff; }
+  .day.birthday { background: linear-gradient(135deg, #ff9800, #ffb74d); color: #fff; }
+  .day.holiday { background: linear-gradient(135deg, #e53935, #ef5350); color: #fff; }
+  .day.round { background: linear-gradient(135deg, #00acc1, #4dd0e1); color: #fff; }
+  .day.superstition { background: linear-gradient(135deg, #7e57c2, #b39ddb); color: #fff; }
+  .day.custom { background: linear-gradient(135deg, #5288c1, #6ab2f2); color: #fff; }
+  .day .dot { width: 4px; height: 4px; border-radius: 50%; background: #fff; margin-top: 2px; }
 
-  h1 {
-    font-size: 22px;
-    font-weight: 600;
-    text-align: center;
-    margin-bottom: 4px;
+  .scroll {
+    flex: 1 1 auto; overflow-y: auto;
+    padding: 0 2px 8px; -webkit-overflow-scrolling: touch;
   }
-  .subtitle {
-    text-align: center;
-    font-size: 13px;
-    color: var(--hint);
-    margin-bottom: 20px;
+  .block-title {
+    font-size: 12px; color: var(--hint); font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.5px;
+    padding: 10px 4px 8px; display: flex; justify-content: space-between; align-items: baseline;
   }
-  .nav {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 12px;
-    padding: 0 4px;
+  .block-title .label { color: var(--text); font-size: 14px; font-weight: 600; text-transform: none; letter-spacing: 0; }
+  .event {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 11px 12px; background: var(--secondary);
+    border-radius: 12px; margin-bottom: 6px;
   }
-  .nav button {
-    background: var(--secondary);
-    color: var(--text);
-    border: none;
-    border-radius: 10px;
-    padding: 8px 16px;
-    font-size: 18px;
-    cursor: pointer;
-    transition: opacity 0.15s;
-    -webkit-tap-highlight-color: transparent;
+  .event .icon { font-size: 18px; line-height: 1; flex-shrink: 0; margin-top: 1px; }
+  .event .info { flex: 1; min-width: 0; }
+  .event .title { font-size: 14px; font-weight: 600; word-wrap: break-word; line-height: 1.3; }
+  .event .sub { font-size: 11px; color: var(--hint); margin-top: 2px; }
+  .event .when {
+    font-size: 11px; color: var(--hint); flex-shrink: 0;
+    text-align: right; line-height: 1.3;
   }
-  .nav button:active { opacity: 0.6; }
-  .nav .month-label {
-    font-size: 16px;
-    font-weight: 600;
+  .event .when .days {
+    display: block; font-weight: 600; color: var(--accent); font-size: 12px;
   }
-  .grid {
-    display: grid;
-    grid-template-columns: repeat(7, 1fr);
-    gap: 4px;
-    margin-bottom: 24px;
+  .empty {
+    text-align: center; padding: 24px 20px; color: var(--hint);
+    font-size: 13px; line-height: 1.5;
   }
-  .grid .dow {
-    text-align: center;
-    font-size: 12px;
-    color: var(--hint);
-    padding: 6px 0;
-    font-weight: 500;
+  .bottom { flex-shrink: 0; padding: 8px 0 12px; border-top: 1px solid rgba(128,128,128,0.15); }
+  .btn-add {
+    width: 100%; padding: 14px; background: var(--btn);
+    color: var(--btn-text); border: none; border-radius: 14px;
+    font-size: 15px; font-weight: 600; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
   }
-  .grid .day {
-    aspect-ratio: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    border-radius: 10px;
-    font-size: 14px;
-    background: var(--secondary);
-    position: relative;
-    cursor: pointer;
-    transition: background 0.15s;
-    -webkit-tap-highlight-color: transparent;
+  .btn-add:active { opacity: 0.8; }
+  .modal-overlay {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.6); z-index: 100;
+    align-items: flex-end; justify-content: center;
   }
-  .grid .day.empty {
-    background: transparent;
-    cursor: default;
+  .modal-overlay.open { display: flex; }
+  .modal {
+    width: 100%; max-width: 500px; background: var(--bg);
+    border-radius: 20px 20px 0 0;
+    padding: 20px 16px calc(20px + env(safe-area-inset-bottom));
+    animation: slideUp 0.2s ease-out;
   }
-  .grid .day.today {
-    outline: 2px solid var(--accent);
-    font-weight: 700;
+  @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+  .modal h3 { font-size: 17px; font-weight: 600; margin-bottom: 16px; text-align: center; }
+  .modal label { display: block; font-size: 12px; color: var(--hint); margin-bottom: 6px; padding-left: 4px; }
+  .modal input {
+    width: 100%; padding: 12px 14px; background: var(--secondary);
+    color: var(--text); border: 1px solid transparent; border-radius: 12px;
+    font-size: 15px; margin-bottom: 14px; outline: none; font-family: inherit;
   }
-  .grid .day.selected {
-    outline: 2px solid #f06292;
-    font-weight: 700;
+  .modal input:focus { border-color: var(--accent); }
+  .modal-buttons { display: flex; gap: 8px; margin-top: 6px; }
+  .modal-buttons button {
+    flex: 1; padding: 13px; border: none; border-radius: 12px;
+    font-size: 15px; font-weight: 600; cursor: pointer; font-family: inherit;
   }
-  .grid .day.has-event {
-    background: linear-gradient(135deg, #5288c1 0%, #6ab2f2 100%);
-    color: #fff;
-  }
-  .grid .day.has-event.anniversary {
-    background: linear-gradient(135deg, #e91e63 0%, #f06292 100%);
-  }
-  .grid .day.has-event.birthday {
-    background: linear-gradient(135deg, #ff9800 0%, #ffb74d 100%);
-  }
-  .grid .day.has-event.wedding {
-    background: linear-gradient(135deg, #9c27b0 0%, #ba68c8 100%);
-  }
-  .grid .day .dot {
-    width: 4px;
-    height: 4px;
-    border-radius: 50%;
-    background: #fff;
-    margin-top: 2px;
-  }
-  .grid .day .num {
-    font-size: 14px;
-    line-height: 1;
-  }
-  .events-list {
-    margin-top: 8px;
-  }
-  .events-list h2 {
-    font-size: 16px;
-    font-weight: 600;
-    margin-bottom: 10px;
-    padding-left: 4px;
-  }
-  .event-item {
-    display: flex;
-    align-items: flex-start;
-    gap: 10px;
-    padding: 12px;
-    background: var(--secondary);
-    border-radius: 12px;
-    margin-bottom: 8px;
-  }
-  .event-item .icon {
-    font-size: 20px;
-    line-height: 1;
-    flex-shrink: 0;
-  }
-  .event-item .info { flex: 1; }
-  .event-item .info .title {
-    font-size: 14px;
-    font-weight: 600;
-    margin-bottom: 2px;
-  }
-  .event-item .info .date {
-    font-size: 12px;
-    color: var(--hint);
-  }
-  .event-item.past { opacity: 0.5; }
+  .modal-buttons .cancel { background: var(--secondary); color: var(--text); }
+  .modal-buttons .save { background: var(--btn); color: var(--btn-text); }
   .loading {
-    text-align: center;
-    padding: 60px 20px;
-    color: var(--hint);
-    font-size: 14px;
-  }
-  .legend {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
-    justify-content: center;
-    font-size: 12px;
-    color: var(--hint);
-    margin-top: 16px;
-  }
-  .legend span { display: flex; align-items: center; gap: 4px; }
-  .legend .dot-color {
-    width: 10px; height: 10px; border-radius: 3px;
+    position: fixed; inset: 0; display: flex; align-items: center;
+    justify-content: center; color: var(--hint); font-size: 14px;
+    background: var(--bg); z-index: 200;
   }
 </style>
 </head>
 <body>
-  <div class="loading" id="loading">Загрузка календаря…</div>
 
-  <div id="app" style="display:none">
-    <h1>Наш календарь</h1>
-    <div class="subtitle" id="subtitle">Москва ⇄ Омск, но сердце всегда рядом 💕</div>
+<div class="loading" id="loading">Загрузка…</div>
 
-    <div class="nav">
-      <button id="prevMonth">‹</button>
-      <div class="month-label" id="monthLabel"></div>
-      <button id="nextMonth">›</button>
-    </div>
+<div class="app" id="app" style="display:none">
+  <div class="header">
+    <button class="nav-btn" id="prevMonth">‹</button>
+    <div class="month" id="monthLabel"></div>
+    <button class="nav-btn" id="nextMonth">›</button>
+  </div>
+  <div class="dow">
+    <div>Пн</div><div>Вт</div><div>Ср</div>
+    <div>Чт</div><div>Пт</div><div>Сб</div><div>Вс</div>
+  </div>
+  <div class="grid" id="grid"></div>
 
-    <div class="grid" id="grid">
-      <div class="dow">Пн</div><div class="dow">Вт</div><div class="dow">Ср</div>
-      <div class="dow">Чт</div><div class="dow">Пт</div><div class="dow">Сб</div>
-      <div class="dow">Вс</div>
-    </div>
-
-    <div class="legend">
-      <span><span class="dot-color" style="background:#e91e63"></span>Годовщины</span>
-      <span><span class="dot-color" style="background:#ff9800"></span>Дни рождения</span>
-      <span><span class="dot-color" style="background:#9c27b0"></span>Свадьба</span>
-    </div>
-
-    <div class="events-list">
-      <h2 id="eventsTitle">Ближайшие события</h2>
-      <div id="events"></div>
-    </div>
+  <div class="scroll" id="scrollArea">
+    <div id="selectedBlock"></div>
+    <div id="upcomingBlock"></div>
   </div>
 
+  <div class="bottom">
+    <button class="btn-add" id="addEventBtn">
+      <span>+</span><span>Добавить событие</span>
+    </button>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal">
+    <h3>Новое событие</h3>
+    <label>Название</label>
+    <input type="text" id="eventName" placeholder="Первое свидание" maxlength="100" autocomplete="off">
+    <label>Дата</label>
+    <input type="date" id="eventDate">
+    <div class="modal-buttons">
+      <button class="cancel" id="cancelBtn">Отмена</button>
+      <button class="save" id="saveBtn">Сохранить</button>
+    </div>
+  </div>
+</div>
+
 <script>
+// ═══════════════════════════════════════════════════════════════
+//  TELEGRAM
+// ═══════════════════════════════════════════════════════════════
 const tg = window.Telegram && window.Telegram.WebApp;
 if (tg) {
-  tg.ready();
-  tg.expand();
+  tg.ready(); tg.expand();
   if (tg.setHeaderColor) tg.setHeaderColor('secondary_bg_color');
   if (tg.setBackgroundColor) tg.setBackgroundColor('bg_color');
 }
 
-// ─── Данные ───────────────────────────────────────────────────
-let events = [];
+// ═══════════════════════════════════════════════════════════════
+//  ВШИТЫЕ ДАТЫ ПАРЫ (меняются здесь, если что-то не так)
+// ═══════════════════════════════════════════════════════════════
+const START_ISO     = '2026-05-15';   // начало отношений
+const WEDDING_ISO   = '2026-07-15';   // свадьба
+const BIRTHDAY_HER  = '2014-03-04';   // её ДР
+const BIRTHDAY_HIM  = '2007-09-21';   // его ДР
+
+// ═══════════════════════════════════════════════════════════════
+//  ПОЛЬЗОВАТЕЛЬСКИЕ СОБЫТИЯ ИЗ БОТА (только те, что добавлены через Web App)
+// ═══════════════════════════════════════════════════════════════
+function b64DecodeUnicode(str){
+  str = str.replace(/-/g, '+').replace(/_/g, '/');
+  while (str.length % 4) str += '=';
+  try {
+    const bin = atob(str);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return new TextDecoder('utf-8').decode(bytes);
+  } catch(e){ console.error('b64 fail', e); return null; }
+}
+
 const params = new URLSearchParams(window.location.search);
-const eventsParam = params.get('events');
-if (eventsParam) {
-  try { events = JSON.parse(decodeURIComponent(eventsParam)); } catch(e) {
-    console.error('Не удалось распарсить events:', e);
+let USER_EVENTS = [];
+const customRaw = params.get('custom');
+if (customRaw){
+  const decoded = b64DecodeUnicode(customRaw);
+  if (decoded){
+    try { USER_EVENTS = JSON.parse(decoded); }
+    catch(e){ console.error('json parse fail', e); }
   }
 }
+console.log('Пользовательских событий:', USER_EVENTS.length);
 
-// Заглушка на случай пустых данных
-if (!Array.isArray(events) || events.length === 0) {
-  events = [
-    { date: '2026-05-15', title: 'Начало отношений', type: 'anniversary', emoji: '❤️' },
-    { date: '2026-07-15', title: 'Свадьба', type: 'wedding', emoji: '💕' },
-    { date: '2026-03-04', title: 'Её день рождения', type: 'birthday', emoji: '🎀' },
-    { date: '2026-09-21', title: 'Его день рождения', type: 'birthday', emoji: '✨' },
-  ];
+// ═══════════════════════════════════════════════════════════════
+//  СПРАВОЧНИКИ
+// ═══════════════════════════════════════════════════════════════
+const IMPORTANT_HOLIDAYS = {
+  '01-01': 'Новый год',
+  '01-07': 'Рождество',
+  '02-14': 'День святого Валентина',
+  '03-08': '8 Марта',
+  '05-09': 'День Победы',
+  '07-08': 'День семьи, любви и верности',
+  '12-31': 'Канун Нового года',
+};
+const MINOR_HOLIDAYS = {
+  '01-25': 'Татьянин день',
+  '02-21': 'День родного языка',
+  '03-20': 'Весеннее равноденствие',
+  '04-01': 'День смеха',
+  '05-15': 'Международный день семьи',
+  '06-01': 'День защиты детей',
+  '07-07': 'Иван Купала',
+  '09-01': 'День знаний',
+  '10-01': 'День пожилых людей',
+  '11-04': 'День народного единства',
+  '12-12': 'День Конституции',
+};
+const SUPERSTITIONS = {
+  '01-13': 'Старый Новый год',
+  '02-29': '29 февраля',
+  '03-15': 'Иды марта',
+  '05-13': '13-е число',
+  '06-13': '13-е число',
+  '07-13': '13-е число',
+  '08-13': '13-е число',
+  '09-13': '13-е число',
+  '10-13': '13-е число',
+  '11-13': '13-е число',
+  '12-13': '13-е число',
+  '12-06': 'Никола Зимний',
+};
+const ROUND_DAYS = [7,14,30,50,100,150,200,300,365,500,600,700,1000,1500,2000,2500,3000,4000,5000,7500,10000];
+
+// ═══════════════════════════════════════════════════════════════
+//  УТИЛИТЫ
+// ═══════════════════════════════════════════════════════════════
+function pluralRu(n, f){
+  n = Math.abs(n) % 100;
+  if (n >= 11 && n <= 19) return f[2];
+  const n1 = n % 10;
+  if (n1 === 1) return f[0];
+  if (n1 >= 2 && n1 <= 4) return f[1];
+  return f[2];
+}
+function pad(n){ return n < 10 ? '0'+n : ''+n; }
+function toIso(d){ return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
+function toMmdd(d){ return pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
+function sameDay(a,b){
+  return a.getFullYear()===b.getFullYear() && a.getMonth()===b.getMonth() && a.getDate()===b.getDate();
+}
+function addYears(d, y){ const r = new Date(d); r.setFullYear(r.getFullYear()+y); return r; }
+function addMonths(d, m){ return new Date(d.getFullYear(), d.getMonth()+m, d.getDate()); }
+function escapeHtml(s){
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+const monthsRu = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+const monthsShort = ['янв','фев','мар','апр','мая','июн','июл','авг','сен','окт','ноя','дек'];
+
+// ═══════════════════════════════════════════════════════════════
+//  ГЕНЕРАЦИЯ ВСЕХ СОБЫТИЙ
+// ═══════════════════════════════════════════════════════════════
+const START_DATE    = new Date(START_ISO + 'T00:00:00');
+const WEDDING_DATE  = new Date(WEDDING_ISO + 'T00:00:00');
+const BH_DATE       = new Date(BIRTHDAY_HER + 'T00:00:00');
+const BM_DATE       = new Date(BIRTHDAY_HIM + 'T00:00:00');
+
+function buildAllEvents(){
+  const list = [];
+
+  // 1) Начало отношений (ежегодно)
+  list.push({ date: toIso(START_DATE), mmdd: toMmdd(START_DATE),
+              title: 'Начало отношений', type: 'anniversary', emoji: '❤️', annual: true });
+
+  // 2) Годовщины (1..15 лет) — конкретные даты
+  for (let y = 1; y <= 15; y++){
+    const d = addYears(START_DATE, y);
+    list.push({ date: toIso(d), title: `${y} ${pluralRu(y,['год','года','лет'])} вместе`,
+                type: 'anniversary', emoji: '❤️', annual: false });
+  }
+
+  // 3) Месячные (1..24 месяца)
+  for (let m = 1; m <= 24; m++){
+    if (m % 12 === 0) continue;
+    const d = addMonths(START_DATE, m);
+    list.push({ date: toIso(d), title: `${m} ${pluralRu(m,['месяц','месяца','месяцев'])} вместе`,
+                type: 'monthly', emoji: '💕', annual: false });
+  }
+
+  // 4) Круглые дни
+  for (const days of ROUND_DAYS){
+    const d = new Date(START_DATE);
+    d.setDate(d.getDate() + days);
+    list.push({ date: toIso(d), title: `${days} ${pluralRu(days,['день','дня','дней'])} вместе`,
+                type: 'round', emoji: '✨', annual: false });
+  }
+
+  // 5) Свадьба (ежегодно)
+  list.push({ date: toIso(WEDDING_DATE), mmdd: toMmdd(WEDDING_DATE),
+              title: 'Свадьба', type: 'wedding', emoji: '💒', annual: true });
+
+  // 6) Её ДР (ежегодно)
+  list.push({ date: toIso(BH_DATE), mmdd: toMmdd(BH_DATE),
+              title: 'Её день рождения', type: 'birthday', emoji: '🎀', annual: true });
+
+  // 7) Его ДР (ежегодно)
+  list.push({ date: toIso(BM_DATE), mmdd: toMmdd(BM_DATE),
+              title: 'Его день рождения', type: 'birthday', emoji: '✨', annual: true });
+
+  // 8) Пользовательские события из бота
+  for (const ev of USER_EVENTS){
+    if (!ev || !ev.date) continue;
+    list.push({
+      date: ev.date,
+      mmdd: ev.date.slice(5),
+      title: ev.title,
+      type: ev.type || 'custom',
+      emoji: ev.emoji || '📅',
+      annual: ev.annual !== false,
+    });
+  }
+
+  // 9) Важные праздники (ежегодные)
+  for (const [mmdd, name] of Object.entries(IMPORTANT_HOLIDAYS)){
+    list.push({ date: '2000-'+mmdd, mmdd, title: name, type: 'holiday', emoji: '🎉', annual: true });
+  }
+
+  // 10) Простые праздники
+  for (const [mmdd, name] of Object.entries(MINOR_HOLIDAYS)){
+    list.push({ date: '2000-'+mmdd, mmdd, title: name, type: 'holiday', emoji: '✨', annual: true });
+  }
+
+  // 11) Приметы
+  for (const [mmdd, name] of Object.entries(SUPERSTITIONS)){
+    list.push({ date: '2000-'+mmdd, mmdd, title: name, type: 'superstition', emoji: '🌸', annual: true });
+  }
+
+  return list;
 }
 
-// ─── Рендер ───────────────────────────────────────────────────
-const monthsRu = ['Январь','Февраль','Март','Апрель','Май','Июнь',
-                  'Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
-const monthsShort = ['янв','фев','мар','апр','мая','июн',
-                     'июл','авг','сен','окт','ноя','дек'];
+const ALL_EVENTS = buildAllEvents();
+console.log('Всего событий сгенерировано:', ALL_EVENTS.length);
 
-let currentDate = new Date();
-let selectedDate = null;
-
-function pad(n) { return n < 10 ? '0' + n : '' + n; }
-function toIso(d) {
-  return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
-}
-function sameDay(a, b) {
-  return a.getFullYear() === b.getFullYear()
-      && a.getMonth() === b.getMonth()
-      && a.getDate() === b.getDate();
-}
-
-function eventsOnDate(d) {
+// ═══════════════════════════════════════════════════════════════
+//  ПОИСК СОБЫТИЙ НА ДЕНЬ
+// ═══════════════════════════════════════════════════════════════
+function eventsOnDate(d){
   const iso = toIso(d);
-  const mmdd = iso.slice(5);
-  return events.filter(e => {
-    const eDate = (e.date || '').slice(0, 10);
-    return eDate === iso || eDate.slice(5) === mmdd;
-  });
+  const mmdd = toMmdd(d);
+  return ALL_EVENTS.filter(e => e.annual ? e.mmdd === mmdd : e.date === iso);
 }
 
-function nextOccurrence(e) {
-  const [y, m, dd] = (e.date || '').slice(0,10).split('-').map(Number);
-  const today = new Date();
-  today.setHours(0,0,0,0);
-  let next = new Date(today.getFullYear(), m - 1, dd);
-  if (next < today) next = new Date(today.getFullYear() + 1, m - 1, dd);
-  return next;
+const TYPE_PRIORITY = ['anniversary','wedding','birthday','holiday','round','monthly','superstition','custom'];
+function primaryType(evs){
+  for (const t of TYPE_PRIORITY) if (evs.some(e => e.type === t)) return t;
+  return 'custom';
 }
 
-function render() {
+function upcomingEvents(limit){
+  const now = new Date(); now.setHours(0,0,0,0);
+  const result = [];
+  const seen = new Set(); // чтобы не дублировать
+  for (let offset = 0; offset < 800 && result.length < limit; offset++){
+    const d = new Date(now); d.setDate(d.getDate() + offset);
+    const evs = eventsOnDate(d);
+    for (const e of evs){
+      const key = d.toISOString() + '|' + e.title;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      result.push({ ...e, _when: new Date(d) });
+      if (result.length >= limit) break;
+    }
+  }
+  return result;
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  КАЛЕНДАРЬ
+// ═══════════════════════════════════════════════════════════════
+let currentDate = new Date();
+let selectedDate = new Date();
+
+function renderHeader(){
+  document.getElementById('monthLabel').textContent =
+    monthsRu[currentDate.getMonth()] + ' ' + currentDate.getFullYear();
+}
+
+function renderGrid(){
+  const grid = document.getElementById('grid');
+  grid.innerHTML = '';
   const year = currentDate.getFullYear();
   const month = currentDate.getMonth();
-
-  document.getElementById('monthLabel').textContent =
-    monthsRu[month] + ' ' + year;
-
-  const grid = document.getElementById('grid');
-  while (grid.children.length > 7) grid.removeChild(grid.lastChild);
-
   const first = new Date(year, month, 1);
-  let startDow = first.getDay() - 1;
-  if (startDow < 0) startDow = 6;
-
+  let startDow = first.getDay() - 1; if (startDow < 0) startDow = 6;
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const today = new Date();
 
-  for (let i = 0; i < startDow; i++) {
-    const el = document.createElement('div');
-    el.className = 'day empty';
-    grid.appendChild(el);
+  for (let i = 0; i < startDow; i++){
+    const el = document.createElement('div'); el.className = 'day empty'; grid.appendChild(el);
   }
 
-  for (let d = 1; d <= daysInMonth; d++) {
+  for (let d = 1; d <= daysInMonth; d++){
     const el = document.createElement('div');
     el.className = 'day';
     const dt = new Date(year, month, d);
-
     if (sameDay(dt, today)) el.classList.add('today');
     if (selectedDate && sameDay(dt, selectedDate)) el.classList.add('selected');
 
     const evs = eventsOnDate(dt);
-    if (evs.length) {
-      el.classList.add('has-event');
-      if (evs.some(e => e.type === 'anniversary')) el.classList.add('anniversary');
-      if (evs.some(e => e.type === 'birthday')) el.classList.add('birthday');
-      if (evs.some(e => e.type === 'wedding')) el.classList.add('wedding');
+    if (evs.length){
+      el.classList.add(primaryType(evs));
+      const dot = document.createElement('div'); dot.className = 'dot'; el.appendChild(dot);
     }
 
     const num = document.createElement('span');
-    num.className = 'num';
     num.textContent = d;
-    el.appendChild(num);
-
-    if (evs.length) {
-      const dot = document.createElement('div');
-      dot.className = 'dot';
-      el.appendChild(dot);
-    }
+    el.insertBefore(num, el.firstChild);
 
     el.onclick = () => {
       selectedDate = dt;
-      render();
-      showDayEvents(dt);
+      renderGrid();
+      renderBottom();
+      if (tg && tg.HapticFeedback) tg.HapticFeedback.selectionChanged();
     };
-
     grid.appendChild(el);
   }
-
-  renderEventsList();
 }
 
-function showDayEvents(dt) {
-  const evs = eventsOnDate(dt);
-  const titleEl = document.getElementById('eventsTitle');
-  titleEl.textContent = 'События ' + dt.getDate() + ' ' + monthsShort[dt.getMonth()];
+function renderBottom(){
+  renderSelected();
+  renderUpcoming();
+}
 
-  const evEl = document.getElementById('events');
-  evEl.innerHTML = '';
+function renderSelected(){
+  const box = document.getElementById('selectedBlock');
+  if (!selectedDate){ box.innerHTML = ''; return; }
 
-  if (!evs.length) {
-    evEl.innerHTML = '<div class="event-item"><div class="info"><div class="title">Нет событий</div></div></div>';
+  const evs = eventsOnDate(selectedDate);
+  const dateLabel = selectedDate.getDate() + ' ' + monthsShort[selectedDate.getMonth()];
+
+  let html = `<div class="block-title"><span>Этот день</span><span class="label">${dateLabel}</span></div>`;
+
+  if (!evs.length){
+    html += '<div class="empty">В этот день пока ничего нет ✨</div>';
+    box.innerHTML = html;
     return;
   }
 
-  evs.forEach(e => {
-    const item = document.createElement('div');
-    item.className = 'event-item';
-    item.innerHTML =
-      '<div class="icon">' + (e.emoji || '📅') + '</div>' +
-      '<div class="info">' +
-        '<div class="title">' + e.title + '</div>' +
-      '</div>';
-    evEl.appendChild(item);
-  });
+  evs.sort((a,b) => TYPE_PRIORITY.indexOf(a.type) - TYPE_PRIORITY.indexOf(b.type));
+  for (const e of evs){
+    html += `<div class="event"><div class="icon">${e.emoji || '📅'}</div>` +
+            `<div class="info"><div class="title">${escapeHtml(e.title)}</div></div></div>`;
+  }
+  box.innerHTML = html;
 }
 
-function renderEventsList() {
-  document.getElementById('eventsTitle').textContent = 'Ближайшие события';
-  const today = new Date();
-  today.setHours(0,0,0,0);
+function renderUpcoming(){
+  const box = document.getElementById('upcomingBlock');
+  const list = upcomingEvents(20);
 
-  const sorted = events
-    .map(e => ({ ...e, nextDate: nextOccurrence(e) }))
-    .sort((a, b) => a.nextDate - b.nextDate)
-    .slice(0, 10);
+  let html = '<div class="block-title"><span>Скоро</span></div>';
+  if (!list.length){
+    html += '<div class="empty">Пока ничего не запланировано</div>';
+    box.innerHTML = html;
+    return;
+  }
 
-  const evEl = document.getElementById('events');
-  evEl.innerHTML = '';
+  const today = new Date(); today.setHours(0,0,0,0);
 
-  sorted.forEach(e => {
-    const item = document.createElement('div');
-    item.className = 'event-item';
-    const daysLeft = Math.round((e.nextDate - today) / 86400000);
-    const dateStr = e.nextDate.getDate() + ' ' + monthsShort[e.nextDate.getMonth()];
-    const daysStr = daysLeft === 0 ? 'сегодня'
-                  : daysLeft === 1 ? 'завтра'
-                  : 'через ' + daysLeft + ' дн.';
-    item.innerHTML =
-      '<div class="icon">' + (e.emoji || '📅') + '</div>' +
-      '<div class="info">' +
-        '<div class="title">' + e.title + '</div>' +
-        '<div class="date">' + dateStr + ' — ' + daysStr + '</div>' +
-      '</div>';
-    evEl.appendChild(item);
-  });
+  for (const e of list){
+    const when = e._when;
+    const daysLeft = Math.round((when - today) / 86400000);
+    const dateStr = when.getDate() + ' ' + monthsShort[when.getMonth()];
+    let whenStr;
+    if (daysLeft === 0) whenStr = 'сегодня';
+    else if (daysLeft === 1) whenStr = 'завтра';
+    else whenStr = 'через ' + daysLeft + ' дн.';
+
+    html += `<div class="event"><div class="icon">${e.emoji || '📅'}</div>` +
+            `<div class="info"><div class="title">${escapeHtml(e.title)}</div>` +
+            `<div class="sub">${dateStr}</div></div>` +
+            `<div class="when"><span class="days">${whenStr}</span></div></div>`;
+  }
+  box.innerHTML = html;
 }
 
 document.getElementById('prevMonth').onclick = () => {
   currentDate.setMonth(currentDate.getMonth() - 1);
-  render();
+  renderHeader(); renderGrid();
 };
 document.getElementById('nextMonth').onclick = () => {
   currentDate.setMonth(currentDate.getMonth() + 1);
-  render();
+  renderHeader(); renderGrid();
 };
 
+// ═══════════════════════════════════════════════════════════════
+//  МОДАЛКА
+// ═══════════════════════════════════════════════════════════════
+const modal = document.getElementById('modalOverlay');
+const nameInput = document.getElementById('eventName');
+const dateInput = document.getElementById('eventDate');
+
+function openModal(){
+  nameInput.value = '';
+  dateInput.value = toIso(selectedDate || new Date());
+  modal.classList.add('open');
+  if (tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred('light');
+  setTimeout(() => nameInput.focus(), 100);
+}
+function closeModal(){ modal.classList.remove('open'); }
+
+document.getElementById('addEventBtn').onclick = openModal;
+document.getElementById('cancelBtn').onclick = closeModal;
+modal.addEventListener('click', (e) => { if (e.target === modal) closeModal(); });
+
+document.getElementById('saveBtn').onclick = () => {
+  const name = nameInput.value.trim();
+  const dateVal = dateInput.value;
+  if (!name){ if (tg) tg.showAlert('Введи название'); return; }
+  if (!dateVal){ if (tg) tg.showAlert('Выбери дату'); return; }
+
+  const lower = name.toLowerCase();
+  let type = 'custom';
+  if (lower.includes('свадьб')) type = 'wedding';
+  else if (lower.includes('помолв')) type = 'wedding';
+  else if (lower.includes('день рожд')) type = 'birthday';
+  else if (lower.includes('годовщ') || lower.includes('вместе')) type = 'anniversary';
+
+  if (tg && tg.sendData){
+    tg.sendData(JSON.stringify({ action: 'add_event', name, date: dateVal, type }));
+  } else {
+    USER_EVENTS.push({ date: dateVal, title: name, type, emoji: '📅', annual: true });
+    location.reload();
+  }
+};
+
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
+
+// ═══════════════════════════════════════════════════════════════
+//  СТАРТ
+// ═══════════════════════════════════════════════════════════════
 document.getElementById('loading').style.display = 'none';
-document.getElementById('app').style.display = 'block';
-render();
+document.getElementById('app').style.display = 'flex';
+renderHeader();
+renderGrid();
+renderBottom();
 </script>
 </body>
 </html>
